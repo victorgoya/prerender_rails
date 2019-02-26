@@ -159,7 +159,8 @@ module Rack
       begin
         url = URI.parse(build_api_url(env))
         headers = {
-          'User-Agent' => env['HTTP_USER_AGENT']
+          'User-Agent' => env['HTTP_USER_AGENT'],
+          'Accept-Encoding' => 'gzip'
         }
         headers['X-Prerender-Token'] = ENV['PRERENDER_TOKEN'] if ENV['PRERENDER_TOKEN']
         headers['X-Prerender-Token'] = @options[:prerender_token] if @options[:prerender_token]
@@ -167,7 +168,13 @@ module Rack
         req.basic_auth(ENV['PRERENDER_USERNAME'], ENV['PRERENDER_PASSWORD']) if @options[:basic_auth]
         http = Net::HTTP.new(url.host, url.port)
         http.use_ssl = true if url.scheme == 'https'
-        http.request(req)
+        response = http.request(req)
+        if response['Content-Encoding'] == 'gzip'
+          response.body = ActiveSupport::Gzip.decompress(response.body)
+          response['Content-Length'] = response.body.length
+          response.delete('Content-Encoding')
+        end
+        response
       rescue
         nil
       end
